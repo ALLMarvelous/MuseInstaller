@@ -346,6 +346,27 @@ internal static class MLManager
                 using var chartFile = File.Create(chartPath);
                 await chartBuffer.CopyToAsync(chartFile);
             }
+
+            // Do custom start screen
+            var startScreenUrl = "http://mdmc.moe/cdn/startscreen.zip";
+
+            SetProgress(0, "Downloading Muse Dash start screen");
+
+            using var startScreenBuffer = new MemoryStream();
+            var startScreenResult = await InstallerUtils.DownloadFileAsync(startScreenUrl, startScreenBuffer, SetProgress);
+            if (startScreenResult != null)
+            {
+                onFinished?.Invoke("Failed to download Muse Dash start screen: " + startScreenResult);
+                return;
+            }
+            startScreenBuffer.Seek(0, SeekOrigin.Begin);
+            
+            var extStartScreenRes = InstallerUtils.Extract(startScreenBuffer, Path.Combine(gameDir, "UserData"), SetProgress);
+            if (extStartScreenRes != null)
+            {
+                onFinished?.Invoke(extStartScreenRes);
+                return;
+            }
         }
 
         onFinished?.Invoke(null);
