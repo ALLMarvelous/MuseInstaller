@@ -37,15 +37,6 @@ public partial class MainView : UserControl
 
         OnGameListUpdate(null, null);
         GameManager.Games.CollectionChanged += OnGameListUpdate;
-
-        if (!showedNotice && Program.Version.Revision > 0)
-        {
-            showedNotice = true;
-            DialogBox.ShowNotice("""
-                                 You're currently using a bleeding-edge CI build.
-                                 Please note that this build will not auto-update, so it's recommended to use a stable release instead.
-                                 """);
-        }
     }
 
     private static async Task<bool> DoInit()
