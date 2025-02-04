@@ -5,7 +5,6 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MelonLoader.Installer.ViewModels;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 
 namespace MelonLoader.Installer.Views;
 
@@ -75,8 +74,6 @@ public partial class DetailsView : UserControl
             return;
 
         var en = MLManager.Versions.Where(x => (Model.Game.IsLinux ? x.DownloadUrlLinux : (Model.Game.Is32Bit ? x.DownloadUrlWinX86 : x.DownloadUrlWin)) != null);
-        if (NightlyCheck.IsChecked != true)
-            en = en.Where(x => !x.Version.IsPrerelease || x.IsLocalPath);
 
         VersionCombobox.ItemsSource = en;
         VersionCombobox.SelectedIndex = 0;
@@ -139,7 +136,7 @@ public partial class DetailsView : UserControl
         ShowLinuxInstructions.IsVisible = false;
 
         _ = MLManager.InstallAsync(Path.GetDirectoryName(Model.Game.Path)!, Model.Game.MLInstalled && !KeepFilesCheck.IsChecked!.Value,
-            (MLVersion)VersionCombobox.SelectedItem!, Model.Game.IsLinux, Model.Game.Is32Bit,
+            IncludeAllCheck.IsChecked!.Value, (MLVersion)VersionCombobox.SelectedItem!,
             (progress, newStatus) => Dispatcher.UIThread.Post(() => OnInstallProgress(progress, newStatus)),
             (errorMessage) => Dispatcher.UIThread.Post(() => OnOperationFinished(errorMessage)));
     }
@@ -217,51 +214,6 @@ public partial class DetailsView : UserControl
         var error = MLManager.Uninstall(Model.Game.Dir, !KeepFilesCheck.IsChecked!.Value);
 
         OnOperationFinished(error);
-    }
-
-    private async void SelectZipHandler(object sender, TappedEventArgs args)
-    {
-        if (Model == null)
-            return;
-
-        var topLevel = TopLevel.GetTopLevel(this)!;
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new()
-        {
-            Title = "Select a zipped MelonLoader version...",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new("ZIP Archive")
-                {
-                    Patterns = [ "*.zip" ]
-                }
-            ]
-        });
-
-        if (files.Count is 0 or > 1)
-            return;
-
-        var path = files[0].Path.LocalPath;
-
-        Model.Installing = true;
-        ShowLinuxInstructions.IsVisible = false;
-
-        _ = Task.Run(() => MLManager.SetLocalZip(path,
-            (progress, newStatus) => Dispatcher.UIThread.Post(() => OnInstallProgress(progress, newStatus)),
-            (errorMessage) => Dispatcher.UIThread.Post(() =>
-            {
-                if (errorMessage == null)
-                {
-                    var ver = MLManager.Versions[0];
-                    if ((Model.Game.IsLinux ? ver.DownloadUrlLinux : (Model.Game.Is32Bit ? ver.DownloadUrlWinX86 : ver.DownloadUrlWin)) == null)
-                    {
-                        DialogBox.ShowError($"The selected version does not support the architechture of the current game: {(Model.Game.IsLinux ? "linux" : "win")}-{(Model.Game.Is32Bit ? "x86" : "x64")}");
-                    }
-                }
-
-                OnOperationFinished(errorMessage, true);
-                UpdateVersionList();
-            })));
     }
 
     private void ShowLinuxInstructionsHandler(object sender, TappedEventArgs args)

@@ -8,6 +8,7 @@ namespace MelonLoader.Installer.Views;
 public partial class MainView : UserControl
 {
     private static bool showedNotice;
+    private static bool redirected;
     
     public MainViewModel? Model => (MainViewModel?)DataContext;
 
@@ -88,6 +89,16 @@ public partial class MainView : UserControl
     private void OnGameListUpdate(object? sender, NotifyCollectionChangedEventArgs? e)
     {
         NoGamesText.IsVisible = GameManager.Games.Count == 0;
+        if (!redirected && GameManager.Games.Count > 0)
+        {
+            var game = GameManager.Games[0];
+
+            if (!game.ValidateGame())
+                return;
+
+            MainWindow.Instance.ShowDetailsView(game);
+            redirected = true;
+        }
     }
 
     public async void AddGameManuallyHandler(object sender, RoutedEventArgs args)
@@ -119,23 +130,13 @@ public partial class MainView : UserControl
         await topLevel.Launcher.LaunchUriAsync(url);
     }
 
-    private void MelonWikiLink(object sender, RoutedEventArgs args)
-    {
-        OpenURL(Config.MelonWiki);
-    }
-
     private void DiscordLink(object sender, RoutedEventArgs args)
     {
         OpenURL(Config.Discord);
     }
 
-    private void GithubLink(object sender, RoutedEventArgs args)
+    private void WebsiteLink(object sender, RoutedEventArgs args)
     {
-        OpenURL(Config.Github);
-    }
-
-    private void TwitterLink(object sender, RoutedEventArgs args)
-    {
-        OpenURL(Config.Twitter);
+        OpenURL(Config.Website);
     }
 }

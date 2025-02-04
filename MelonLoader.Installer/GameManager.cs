@@ -48,6 +48,7 @@ internal static class GameManager
     {
         var gameIsProt = game.IsProtected;
         var gameHasMl = game.MLVersion != null;
+
         for (var i = 0; i < Games.Count; i++)
         {
             var iIsProt = Games[i].IsProtected;
@@ -95,6 +96,12 @@ internal static class GameManager
         else if (!Directory.Exists(path))
         {
             errorMessage = "The selected directory does not exist.";
+            return null;
+        }
+        
+        if (!File.Exists(Path.Combine(path, "MuseDash.exe")))
+        {
+            errorMessage = "The selected directory does not contain Muse Dash.";
             return null;
         }
 

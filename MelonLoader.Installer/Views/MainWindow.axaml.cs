@@ -1,6 +1,5 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Threading;
 using MelonLoader.Installer.ViewModels;
 
 namespace MelonLoader.Installer.Views;

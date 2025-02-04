@@ -6,12 +6,12 @@ namespace MelonLoader.Installer;
 
 public static partial class Updater
 {
-    public static volatile UpdateState State;
+    public static volatile UpdateState State = UpdateState.None;
     public static event InstallProgressEventHandler? Progress;
 
     public static async Task<Task?> UpdateIfPossible()
     {
-        if (State != UpdateState.None)
+        if (State == UpdateState.None)
             return null;
         
         // Don't auto-update on CI builds

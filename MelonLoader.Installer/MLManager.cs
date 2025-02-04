@@ -24,6 +24,9 @@ internal static class MLManager
 
     private static MLVersion? localBuild;
 
+    private static JsonArray suggestedMods = [];
+    private static JsonArray suggestedCharts = [];
+
     public static List<MLVersion> Versions { get; } = [];
 
     static MLManager()
@@ -67,7 +70,7 @@ internal static class MLManager
         HttpResponseMessage resp;
         try
         {
-            resp = await InstallerUtils.Http.GetAsync(Config.MelonLoaderBuildWorkflowApi).ConfigureAwait(false);
+            resp = await InstallerUtils.Http.GetAsync(Config.MdmcInstallerApi).ConfigureAwait(false);
         }
         catch
         {
@@ -78,73 +81,27 @@ internal static class MLManager
             return false;
 
         var relStr = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-        var runsJson = JsonNode.Parse(relStr)!["workflow_runs"]!.AsArray();
+        var versionString = JsonNode.Parse(relStr)!["melonloader"]!.ToString();
 
-        // All run names must follow the following format: "{SemVersion} Remaining name"
-        foreach (var run in runsJson)
-        {
-            var runName = run!["name"]!.ToString();
-            var runVerEnd = runName.IndexOf(' ');
-            if (runVerEnd == -1)
-                continue;
+        suggestedCharts = JsonNode.Parse(relStr)!["charts"]!.AsArray();
+        suggestedMods = JsonNode.Parse(relStr)!["mods"]!.AsArray();
 
-            if (!SemVersion.TryParse(runName[..runVerEnd], SemVersionStyles.Any, out var runVersion))
-                continue;
+        if (!SemVersion.TryParse(versionString + "-ci.-1", SemVersionStyles.Any, out var semVersion))
+            return false;
             
-            var version = new MLVersion
-            {
-                Version = runVersion,
-                DownloadUrlWin = $"https://nightly.link/LavaGang/MelonLoader/actions/runs/{run["id"]}/MelonLoader.Windows.x64.CI.Release.zip",
-                DownloadUrlWinX86 = $"https://nightly.link/LavaGang/MelonLoader/actions/runs/{run["id"]}/MelonLoader.Windows.x86.CI.Release.zip",
-                DownloadUrlLinux = $"https://nightly.link/LavaGang/MelonLoader/actions/runs/{run["id"]}/MelonLoader.Linux.x64.CI.Release.zip"
-            };
-
-            if (version.DownloadUrlWin == null && version.DownloadUrlWinX86 == null && version.DownloadUrlLinux == null)
-                continue;
-
-            versions.Add(version);
-        }
-
-        try
+        var version = new MLVersion
         {
-            resp = await InstallerUtils.Http.GetAsync(Config.MelonLoaderReleasesApi).ConfigureAwait(false);
-        }
-        catch
-        {
-            return false;
-        }
+            Version = semVersion,
+            DownloadUrlWin = $"https://github.com/LavaGang/MelonLoader/releases/download/v{versionString}/MelonLoader.x64.zip",
+            DownloadUrlWinX86 = null,
+            DownloadUrlLinux = null
+        };
 
-        if (!resp.IsSuccessStatusCode)
+        if (version.DownloadUrlWin == null && version.DownloadUrlWinX86 == null && version.DownloadUrlLinux == null)
             return false;
 
-        relStr = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-        var releasesJson = JsonNode.Parse(relStr)!.AsArray();
-
-        foreach (var release in releasesJson)
-        {
-            if (!SemVersion.TryParse(release!["tag_name"]!.ToString(), SemVersionStyles.Any, out var relVersion))
-                continue;
-
-            if (relVersion.Major == 0 && relVersion.Minor <= 2)
-                continue;
-
-            var x64Asset = release["assets"]!.AsArray().FirstOrDefault(x => x?["name"]?.ToString() == "MelonLoader.x64.zip");
-            var x86Asset = release["assets"]!.AsArray().FirstOrDefault(x => x?["name"]?.ToString() == "MelonLoader.x86.zip");
-            var linuxAsset = release["assets"]!.AsArray().FirstOrDefault(x => x?["name"]?.ToString() == "MelonLoader.Linux.x64.zip");
-
-            var version = new MLVersion
-            {
-                Version = relVersion,
-                DownloadUrlWin = x64Asset != null ? x64Asset["browser_download_url"]!.ToString() : null,
-                DownloadUrlWinX86 = x86Asset != null ? x86Asset["browser_download_url"]!.ToString() : null,
-                DownloadUrlLinux = linuxAsset != null ? linuxAsset["browser_download_url"]!.ToString() : null
-            };
-
-            if (version.DownloadUrlWin == null && version.DownloadUrlWinX86 == null && version.DownloadUrlLinux == null)
-                continue;
-
-            versions.Add(version);
-        }
+        versions.Add(version);
+       
 
         return true;
     }
@@ -270,76 +227,27 @@ internal static class MLManager
                     return "Failed to fully uninstall MelonLoader: Failed to remove the UserLibs folder.";
                 }
             }
+
+            var customAlbumsDir = Path.Combine(gameDir, "Custom_Albums");
+            if (Directory.Exists(customAlbumsDir))
+            {
+                try
+                {
+                    Directory.Delete(customAlbumsDir, true);
+                }
+                catch
+                {
+                    return "Failed to fully uninstall MelonLoader: Failed to remove the Custom_Albums folder.";
+                }
+            }
         }
 
         return null;
     }
 
-    public static void SetLocalZip(string zipPath, InstallProgressEventHandler? onProgress, InstallFinishedEventHandler? onFinished)
+    public static async Task InstallAsync(string gameDir, bool removeUserFiles, bool includeAll, MLVersion version, InstallProgressEventHandler? onProgress, InstallFinishedEventHandler? onFinished)
     {
-        if (!File.Exists(zipPath))
-        {
-            onFinished?.Invoke("The selected zip file does not exist.");
-            return;
-        }
-
-        localBuild = null;
-        if (Versions.Count > 0 && Versions[0].IsLocalPath)
-            Versions.RemoveAt(0);
-
-        if (Directory.Exists(Config.LocalZipCache))
-        {
-            try
-            {
-                Directory.Delete(Config.LocalZipCache, true);
-            }
-            catch
-            {
-                onFinished?.Invoke("Failed to remove the previously extracted zip data.");
-                return;
-            }
-        }
-
-        onProgress?.Invoke(0, "Extracting local zip archive");
-
-        using var zipStr = File.OpenRead(zipPath);
-        var extRes = InstallerUtils.Extract(zipStr, Config.LocalZipCache, onProgress);
-        if (extRes != null)
-        {
-            onFinished?.Invoke(extRes);
-            return;
-        }
-
-        var mlVer = MLVersion.GetMelonLoaderVersion(Config.LocalZipCache, out var x86, out var linux);
-        if (mlVer == null)
-        {
-            onFinished?.Invoke("The selected zip archive does not contain a valid MelonLoader build.");
-            return;
-        }
-
-        var version = new MLVersion()
-        {
-            Version = mlVer,
-            DownloadUrlWin = !linux ? (!x86 ? Config.LocalZipCache : null) : null,
-            DownloadUrlWinX86 = !linux ? (x86 ? Config.LocalZipCache : null) : null,
-            DownloadUrlLinux = linux ? Config.LocalZipCache : null,
-            IsLocalPath = true
-        };
-
-        localBuild = version;
-        Versions.Insert(0, version);
-
-        onFinished?.Invoke(null);
-    }
-
-    public static async Task InstallAsync(string gameDir, bool removeUserFiles, MLVersion version, bool linux, bool x86, InstallProgressEventHandler? onProgress, InstallFinishedEventHandler? onFinished)
-    {
-        var downloadUrl = linux ? (!x86 ? version.DownloadUrlLinux : null) : (x86 ? version.DownloadUrlWinX86 : version.DownloadUrlWin);
-        if (downloadUrl == null)
-        {
-            onFinished?.Invoke($"The selected version does not support the selected architecture: {(linux ? "linux" : "win")}-{(x86 ? "x86" : "x64")}");
-            return;
-        }
+        var downloadUrl = version.DownloadUrlWin!;
 
         onProgress?.Invoke(0, "Uninstalling previous versions");
 
@@ -350,61 +258,95 @@ internal static class MLManager
             return;
         }
 
-        if (version.IsLocalPath)
+        var tasks = 2;
+        var currentTask = 0;
+
+        void SetProgress(double progress, string? newStatus = null)
         {
-            if (!Directory.Exists(downloadUrl))
-            {
-                onFinished?.Invoke("The selected local build was not found.");
-                return;
-            }
-
-            onProgress?.Invoke(0, "Copying extracted files");
-
-            foreach (var file in Directory.EnumerateFiles(downloadUrl, "*.*", SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(downloadUrl, file);
-                var dest = Path.Combine(gameDir, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                File.Copy(file, dest, true);
-            }
+            onProgress?.Invoke(currentTask / (double)tasks + progress / tasks, newStatus);
         }
-        else
+
+        SetProgress(0, "Downloading MelonLoader " + version);
+
+        using var bufferStr = new MemoryStream();
+        var result = await InstallerUtils.DownloadFileAsync(downloadUrl, bufferStr, SetProgress);
+        if (result != null)
         {
-            var tasks = 2;
-            var currentTask = 0;
+            onFinished?.Invoke("Failed to download MelonLoader: " + result);
+            return;
+        }
+        bufferStr.Seek(0, SeekOrigin.Begin);
 
-            void SetProgress(double progress, string? newStatus = null)
-            {
-                onProgress?.Invoke(currentTask / (double)tasks + progress / tasks, newStatus);
-            }
+        currentTask++;
 
-            SetProgress(0, "Downloading MelonLoader " + version);
+        SetProgress(0, "Installing " + version);
 
-            using var bufferStr = new MemoryStream();
-            var result = await InstallerUtils.DownloadFileAsync(downloadUrl, bufferStr, SetProgress);
-            if (result != null)
-            {
-                onFinished?.Invoke("Failed to download MelonLoader: " + result);
-                return;
-            }
-            bufferStr.Seek(0, SeekOrigin.Begin);
-
-            currentTask++;
-
-            SetProgress(0, "Installing " + version);
-
-            var extRes = InstallerUtils.Extract(bufferStr, gameDir, SetProgress);
-            if (extRes != null)
-            {
-                onFinished?.Invoke(extRes);
-                return;
-            }
+        var extRes = InstallerUtils.Extract(bufferStr, gameDir, SetProgress);
+        if (extRes != null)
+        {
+            onFinished?.Invoke(extRes);
+            return;
         }
 
         Directory.CreateDirectory(Path.Combine(gameDir, "Mods"));
         Directory.CreateDirectory(Path.Combine(gameDir, "Plugins"));
         Directory.CreateDirectory(Path.Combine(gameDir, "UserData"));
         Directory.CreateDirectory(Path.Combine(gameDir, "UserLibs"));
+
+        if (includeAll)
+        {
+            // Do mods
+            foreach (var mod in suggestedMods)
+            {
+                if (mod == null || mod["id"] == null || mod["name"] == null || mod["version"] == null)
+                    continue;
+
+                var modId = mod["id"]!.ToString();
+                var modName = mod["name"]!.ToString();
+                var modVersion = mod["version"]!.ToString();
+                var modUrl = $"https://api.mdmc.moe/v2/mods/{modId}/download";
+                var modPath = Path.Combine(gameDir, "Mods", $"{modName}.dll");
+
+                SetProgress(0, $"Downloading mod '{modName}' v{modVersion}");
+
+                using var modBuffer = new MemoryStream();
+                var modResult = await InstallerUtils.DownloadFileAsync(modUrl, modBuffer, SetProgress);
+                if (modResult != null)
+                {
+                    onFinished?.Invoke("Failed to download mod '" + modName + "': " + modResult);
+                    return;
+                }
+                modBuffer.Seek(0, SeekOrigin.Begin);
+                using var modFile = File.Create(modPath);
+                await modBuffer.CopyToAsync(modFile);
+            }
+
+            // Do charts
+            Directory.CreateDirectory(Path.Combine(gameDir, "Custom_Albums"));
+            foreach (var chart in suggestedCharts)
+            {
+                if (chart == null || chart["id"] == null || chart["name"] == null)
+                    continue;
+
+                var chartId = chart["id"]!.ToString();
+                var chartName = chart["name"]!.ToString();
+                var chartUrl = $"https://api.mdmc.moe/v2/charts/{chartId}/download";
+                var chartPath = Path.Combine(gameDir, "Custom_Albums", $"{chartName}.mdm");
+
+                SetProgress(0, $"Downloading chart '{chartName}'");
+
+                using var chartBuffer = new MemoryStream();
+                var chartResult = await InstallerUtils.DownloadFileAsync(chartUrl, chartBuffer, SetProgress);
+                if (chartResult != null)
+                {
+                    onFinished?.Invoke("Failed to download chart '" + chartName + "': " + chartResult);
+                    return;
+                }
+                chartBuffer.Seek(0, SeekOrigin.Begin);
+                using var chartFile = File.Create(chartPath);
+                await chartBuffer.CopyToAsync(chartFile);
+            }
+        }
 
         onFinished?.Invoke(null);
     }

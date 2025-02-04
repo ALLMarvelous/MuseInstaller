@@ -23,8 +23,8 @@
             <Image Source="/Assets/ML_Text.png" Height="30" />
         </StackPanel>
         <TextBlock Margin="0 20 0 0" HorizontalAlignment="Stretch" Grid.Row="1" Foreground="#AFFF"
-            xml:space="preserve" TextAlignment="Center">To install MelonLoader, click on one of the games below.
-If you can't find your game on the list, add it manually.</TextBlock>
+            xml:space="preserve" TextAlignment="Center">To install MelonLoader, select Muse Dash below.
+If you can't find Muse Dash on the list, add it manually.</TextBlock>
         <Border Grid.Row="2" Background="#0000" CornerRadius="8" Margin="0 10" ClipToBounds="True">
             <Grid>
                 <ScrollViewer>
@@ -38,8 +38,8 @@ If you can't find your game on the list, add it manually.</TextBlock>
                 </ScrollViewer>
                 <TextBlock Name="NoGamesText" IsVisible="False" Foreground="#3FFF" HorizontalAlignment="Center"
                     VerticalAlignment="Center" TextAlignment="Center" xml:space="preserve">
-No Unity games have been found on your device.
-Please add one manually using the button below.
+Muse Dash was not found on your device.
+Please add it manually using the button below.
                 </TextBlock>
                 <TextBlock Name="LoadingText" IsVisible="{Binding !Ready}" Foreground="#9FFF" FontSize="20" HorizontalAlignment="Center"
                     VerticalAlignment="Center" TextAlignment="Center">
@@ -49,32 +49,18 @@ Please add one manually using the button below.
         </Border>
         <Button Grid.Row="3" IsEnabled="{Binding Ready}" HorizontalAlignment="Right" Click="AddGameManuallyHandler">Add Game Manually</Button>
         <StackPanel Height="38" Grid.Row="3" Spacing="1" Orientation="Horizontal">
-            <Button Click="MelonWikiLink" ToolTip.Tip="MelonWiki"
+            <Button Click="DiscordLink" ToolTip.Tip="Muse Dash Modding Community Discord"
                 ToolTip.Placement="RightEdgeAlignedBottom" Padding="3" CornerRadius="1000"
                 Background="Transparent">
-                <Border CornerRadius="1000" ClipToBounds="True">
-                    <Image Source="/Assets/icon.ico" />
-                </Border>
-            </Button>
-            <Button Click="DiscordLink" ToolTip.Tip="Official MelonLoader Discord"
-                ToolTip.Placement="RightEdgeAlignedBottom" Padding="3"
-                CornerRadius="1000" Background="Transparent">
                 <Border CornerRadius="1000" ClipToBounds="True">
                     <Image Source="/Assets/discord.png" />
                 </Border>
             </Button>
-            <Button Click="GithubLink" ToolTip.Tip="LavaGang Github"
-                ToolTip.Placement="RightEdgeAlignedBottom" Padding="0" CornerRadius="1000"
-                Background="Transparent">
+            <Button Click="WebsiteLink" ToolTip.Tip="Muse Dash Modding Community Website"
+                ToolTip.Placement="RightEdgeAlignedBottom" Padding="3"
+                CornerRadius="1000" Background="Transparent">
                 <Border CornerRadius="1000" ClipToBounds="True">
-                    <Image Source="/Assets/github.png" />
-                </Border>
-            </Button>
-            <Button Click="TwitterLink" ToolTip.Tip="LavaGang Twitter (nobody is calling it X)"
-                ToolTip.Placement="RightEdgeAlignedBottom"
-                Padding="3" CornerRadius="1000" Background="Transparent">
-                <Border CornerRadius="1000" ClipToBounds="True">
-                    <Image Source="/Assets/twitter.png" />
+                    <Image Source="/Assets/mdmc.png" />
                 </Border>
             </Button>
         </StackPanel>
